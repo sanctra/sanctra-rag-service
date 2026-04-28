@@ -1,13 +1,13 @@
-﻿from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
-from typing import List, Optional
 import os
+from typing import List, Optional
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
 
 from app.rag import RagClient, RagItem, RagSearchResult
 
 
 app = FastAPI(title="Sanctra RAG Service")
-app.include_router(rag_router, prefix="/rag", tags=["rag"])
 
 client = RagClient(
     project=os.getenv("GCP_PROJECT", ""),
@@ -17,6 +17,7 @@ client = RagClient(
     sa_json_b64=os.getenv("GCP_SA_JSON_B64"),
 )
 
+
 class IndexItem(BaseModel):
     id: str
     person_id: str
@@ -24,21 +25,26 @@ class IndexItem(BaseModel):
     text: str
     tags: Optional[List[str]] = None
 
+
 class IndexRequest(BaseModel):
     items: List[IndexItem] = Field(default_factory=list)
+
 
 class SearchRequest(BaseModel):
     person_id: str
     query: str
     k: int = 5
-    lambda_mult: float = 0.5  # for MMR
+    lambda_mult: float = 0.5  # for future MMR/Vertex implementation
+
 
 class SearchResponse(BaseModel):
     results: List[RagSearchResult]
 
+
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
+
 
 @app.post("/index")
 def index(req: IndexRequest):
@@ -57,7 +63,13 @@ def index(req: IndexRequest):
     client.upsert(items)
     return {"ok": True, "count": len(items)}
 
+
 @app.post("/search", response_model=SearchResponse)
 def search(req: SearchRequest):
-    results = client.search(person_id=req.person_id, query=req.query, k=req.k, lambda_mult=req.lambda_mult)
+    results = client.search(
+        person_id=req.person_id,
+        query=req.query,
+        k=req.k,
+        lambda_mult=req.lambda_mult,
+    )
     return SearchResponse(results=results)
